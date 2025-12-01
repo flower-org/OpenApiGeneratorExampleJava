@@ -68,7 +68,7 @@ openApiGenerate {
 // TODO: find a more robust way to clean generated service on build
 tasks.named('openApiGenerate') {
     doFirst {
-        delete("$buildDir/generated/src/main/java/com/flower/api")
+        delete("$buildDir/generated/src/main/java/com/flower/service/api")
     }
 }
 
