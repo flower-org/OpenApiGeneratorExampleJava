@@ -1,0 +1,121 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.springframework.boot' version '3.5.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.openapi.generator' version '7.16.0'
+    id "net.ltgt.errorprone" version "3.0.1"
+}
+
+compileJava {
+    options.compilerArgs << '-parameters'
+}
+compileTestJava {
+    options.compilerArgs << '-parameters'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'src/main/java'
+            srcDirs "$buildDir/generated/src/main/java"
+        }
+    }
+    test { java { srcDir 'src/test' } }
+}
+
+group = 'com.flower.api'
+version = '1.0.0'
+
+// see https://openapi-generator.tech/docs/generators/spring
+openApiGenerate {
+    generatorName = 'spring'
+    inputSpec = "$rootDir/openapi/api.yaml"
+    outputDir = "$buildDir/generated"
+    apiPackage = 'com.flower.service.api.controller'
+    modelPackage = 'com.flower.service.api.model'
+    invokerPackage = 'com.flower.service.api.invoker'
+
+    generateApiTests = false
+    generateApiDocumentation = false
+    generateModelTests = false
+    generateModelDocumentation = false
+
+    // see https://openapi-generator.tech/docs/generators/spring/#config-options
+    configOptions = [
+            useSpringBoot3       : 'true',
+            interfaceOnly        : 'true',
+            delegatePattern      : 'false',
+            skipDefaultInterface : 'false',
+            useResponseEntity    : 'true',
+            dateLibrary          : 'java8',
+            useTags              : 'true',
+            serializableModel    : 'true',
+            useOptional          : 'false',
+            unhandledException   : 'true',
+            library              : 'spring-boot',
+            hideGenerationTimestamp: 'false',
+            generateSupportingFiles: 'true'
+    ]
+
+    globalProperties = [
+            apis   : '', // no value or comma-separated api names
+            models : '',  // no value or comma-separated model names
+            supportingFiles:  "ApiUtil.java"
+    ]
+}
+
+// TODO: find a more robust way to clean generated service on build
+tasks.named('openApiGenerate') {
+    doFirst {
+        delete("$buildDir/generated/src/main/java/com/flower/api")
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.10'
+    implementation("org.openapitools:jackson-databind-nullable:0.2.6")
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    annotationProcessor "com.uber.nullaway:nullaway:0.10.26"
+    compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+    errorprone "com.google.errorprone:error_prone_core:2.10.0"
+    errorproneJavac "com.google.errorprone:javac:9+181-r4173-1"
+}
+
+test {
+    useJUnitPlatform()
+}
+
+import net.ltgt.gradle.errorprone.CheckSeverity
+
+tasks.withType(JavaCompile) {
+    // remove the if condition if you want to run NullAway on test code
+    if (!name.toLowerCase().contains("test") && !name.toLowerCase().contains("build")) {
+        options.errorprone {
+            check("NullAway", CheckSeverity.ERROR)
+            excludedPaths.set(".*[\\\\/]generated[\\\\/].*")
+            option("NullAway:AnnotatedPackages", "com.flower")
+        }
+    } else {
+        options.errorprone {
+            check("DoNotMock", CheckSeverity.WARN)
+        }
+    }
+}
+
+// Ensure OpenAPI code is generated before compiling
+tasks.named('compileJava') {
+    dependsOn tasks.named('openApiGenerate')
+}
